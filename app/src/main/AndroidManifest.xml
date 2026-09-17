@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ * @Author: wj 3363891051@qq.com
+ * @Date: 2026-09-17 15:30
+ * @LastEditors: wj 3363891051@qq.com
+ * @LastEditTime: 2026-09-17 15:30
+ * @FilePath: app/src/main/AndroidManifest.xml
+ * @Description: 壳工程清单：权限最小化，仅声明书源抓取所需的网络权限
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 红线 2：网络能力仅用于用户自配置的书源抓取，本地文件不上传，故不申请任何读写/定位/账号权限 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:name=".KrApplication"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.KotlinReader">
+
+        <!-- 阅读器旋转屏幕会触发重排，直接锁定由 configChanges 自行处理可避免翻页位置丢失 -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

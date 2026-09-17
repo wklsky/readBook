@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ * @Author: wj 3363891051@qq.com
+ * @Date: 2026-09-17 15:30
+ * @LastEditors: wj 3363891051@qq.com
+ * @LastEditTime: 2026-09-17 15:30
+ * @FilePath: app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+ * @Description: 自适应图标定义（minSdk 26，无需为旧版本提供位图回退）
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>

@@ -1,0 +1,95 @@
+/**
+ * @Author: wj 3363891051@qq.com
+ * @Date: 2026-09-17 09:00
+ * @LastEditors: wj 3363891051@qq.com
+ * @LastEditTime: 2026-09-17 09:00
+ * @FilePath: gradle/libs.versions.toml
+ * @Description: 版本目录（Version Catalog），所有模块依赖版本唯一来源，禁止在模块内硬编码版本号
+ */
+[versions]
+agp = "8.6.1"
+kotlin = "2.0.21"
+ksp = "2.0.21-1.0.28"
+composeBom = "2024.10.01"
+detekt = "1.23.6"
+ktlint = "12.1.0"
+
+lifecycle = "2.8.6"
+activityCompose = "1.9.2"
+navigation = "2.8.3"
+hilt = "2.52"
+hiltWorker = "1.2.0"
+room = "2.6.1"
+datastore = "1.1.1"
+okhttp = "4.12.0"
+jsoup = "1.18.1"
+coil = "3.0.4"
+workmanager = "2.9.1"
+paging = "3.3.2"
+coroutines = "1.9.0"
+serialization = "1.7.3"
+coreKtx = "1.13.1"
+documentfile = "1.0.1"
+
+junit = "4.13.2"
+coroutinesTest = "1.9.0"
+truth = "1.4.2"
+
+[libraries]
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-documentfile = { module = "androidx.documentfile:documentfile", version.ref = "documentfile" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
+androidx-hilt-work = { module = "androidx.hilt:hilt-work", version.ref = "hiltWorker" }
+androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltWorker" }
+
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+compose-foundation = { module = "androidx.compose.foundation:foundation" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-runtime-livedata = { module = "androidx.compose.runtime:runtime-livedata" }
+
+hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
+hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }
+
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+room-paging = { module = "androidx.room:room-paging", version.ref = "room" }
+
+datastore = { module = "androidx.datastore:datastore", version.ref = "datastore" }
+datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+okhttp-logging = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "okhttp" }
+jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
+
+work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workmanager" }
+paging-runtime = { module = "androidx.paging:paging-runtime", version.ref = "paging" }
+paging-compose = { module = "androidx.paging:paging-compose", version.ref = "paging" }
+
+coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutinesTest" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+
+junit = { module = "junit:junit", version.ref = "junit" }
+truth = { module = "com.google.truth:truth", version.ref = "truth" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+room = { id = "androidx.room", version.ref = "room" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }

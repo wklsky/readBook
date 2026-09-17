@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ * @Author: wj 3363891051@qq.com
+ * @Date: 2026-09-17 15:30
+ * @LastEditors: wj 3363891051@qq.com
+ * @LastEditTime: 2026-09-17 15:30
+ * @FilePath: app/src/main/res/drawable/ic_launcher_foreground.xml
+ * @Description: 启动图标前景：摊开的书页矢量图形（自适应图标安全区按 66/108 居中绘制）
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,36 C49,31.5 41,30 33,30 L30,30 L30,76 L33,76 C41,76 49,77.5 54,82 C59,77.5 67,76 75,76 L78,76 L78,30 L75,30 C67,30 59,31.5 54,36 Z M34,34 C41,34.4 48,36 52,39.5 L52,75.5 C47.2,72.5 40.5,71.4 34,71.4 Z M74,71.4 C67.5,71.4 60.8,72.5 56,75.5 L56,39.5 C60,36 67,34.4 74,34 Z" />
+</vector>

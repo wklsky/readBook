@@ -1,0 +1,22 @@
+/**
+ * @Author: wj 3363891051@qq.com
+ * @Date: 2026-09-17 09:00
+ * @LastEditors: wj 3363891051@qq.com
+ * @LastEditTime: 2026-09-17 09:00
+ * @FilePath: build-logic/gradle/libs.versions.toml
+ * @Description: 约定插件构建自身使用的插件坐标版本，需与根 gradle/libs.versions.toml 保持一致
+ */
+[versions]
+agp = "8.6.1"
+kotlin = "2.0.21"
+ksp = "2.0.21-1.0.28"
+room = "2.6.1"
+detekt = "1.23.6"
+
+[libraries]
+android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+compose-gradle-plugin = { module = "org.jetbrains.kotlin:compose-compiler-gradle-plugin", version.ref = "kotlin" }
+ksp-gradle-plugin = { module = "com.google.devtools.ksp:symbol-processing-gradle-plugin", version.ref = "ksp" }
+room-gradle-plugin = { module = "androidx.room:room-gradle-plugin", version.ref = "room" }
+detekt-gradle-plugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }

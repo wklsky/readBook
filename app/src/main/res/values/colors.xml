@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ * @Author: wj 3363891051@qq.com
+ * @Date: 2026-09-17 15:30
+ * @LastEditors: wj 3363891051@qq.com
+ * @LastEditTime: 2026-09-17 15:30
+ * @FilePath: app/src/main/res/values/colors.xml
+ * @Description: 仅承载自适应图标背景色，与 KrTheme LightColors.primary 保持同色系
+-->
+<resources>
+    <color name="ic_launcher_background">#8B6F47</color>
+</resources>
