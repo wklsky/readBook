@@ -129,6 +129,27 @@ class BookRepositoryImpl @Inject constructor(
         }
     }
 
+    /**
+     * 换源落库：先重绑书源主键，再全量替换目录。
+     * 顺序不能反——目录替换会先删后插，若主键重绑失败（唯一索引冲突）应当整条回滚到旧源。
+     */
+    override suspend fun rebindSource(
+        bookId: Long,
+        sourceId: Long,
+        sourceBookKey: String,
+        newChapters: List<Chapter>,
+        latestChapterTitle: String?,
+        intro: String?,
+    ) = withContext(IoDispatcher) {
+        bookDao.rebindSource(bookId, sourceId, sourceBookKey)
+        bookDao.updateSourceInfo(bookId, latestChapterTitle, intro)
+        if (newChapters.isNotEmpty()) {
+            bookDao.deleteChapters(bookId)
+            bookDao.insertChapters(newChapters.map { it.toEntity() })
+            bookDao.updateTotalChapters(bookId, newChapters.size)
+        }
+    }
+
     override suspend fun nextSortOrder(groupId: Long?): Int = withContext(IoDispatcher) {
         (bookDao.maxSortOrder(groupId) ?: 0) + 1
     }

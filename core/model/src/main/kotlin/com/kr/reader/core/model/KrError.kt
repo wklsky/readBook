@@ -77,6 +77,13 @@ data class UnknownAppError(override val userMessage: String = "发生未知错�
 }
 
 /**
+ * 书源规则失效的载体异常。
+ * 之所以不直接抛 AppError：AppError 是 sealed 契约，data 层无法跨模块实现，
+ * 因此由 data 层抛此异常，再在 toAppError 中收敛为可展示的 SourceRuleError。
+ */
+class SourceRuleBroken(message: String) : RuntimeException(message)
+
+/**
  * 从任意 Throwable 降级出可展示错误。
  * 之所以集中处理：网络层、解析层、IO 层抛出的异常类型各异，
  * 统一在此收敛可避免 UI 层出现 switch-if 链条。
@@ -87,6 +94,7 @@ fun Throwable.toAppError(): AppError = when (this) {
     is java.net.SocketTimeoutException -> Timeout()
     is java.io.IOException -> NetworkFailed()
     is OutOfMemoryError -> StorageFull()
+    is SourceRuleBroken -> SourceRuleError(message.orEmpty())
     else -> UnknownAppError()
 }
 

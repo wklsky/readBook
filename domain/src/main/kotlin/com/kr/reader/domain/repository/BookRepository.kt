@@ -55,6 +55,20 @@ interface BookRepository {
 
     suspend fun updateSourceInfo(bookId: Long, newChapters: List<Chapter>, latestChapterTitle: String?, intro: String?)
 
+    /**
+     * 换源（第 4 卷 4.8.3）：重绑书源主键并整体替换目录。
+     * 与 updateSourceInfo 的区别是它同时改写 sourceId/sourceBookKey，
+     * 章节索引由换源用例按章节匹配结果重排，进度只保留章内字符偏移。
+     */
+    suspend fun rebindSource(
+        bookId: Long,
+        sourceId: Long,
+        sourceBookKey: String,
+        newChapters: List<Chapter>,
+        latestChapterTitle: String?,
+        intro: String?,
+    )
+
     suspend fun nextSortOrder(groupId: Long?): Int
 
     suspend fun createGroup(name: String): Long

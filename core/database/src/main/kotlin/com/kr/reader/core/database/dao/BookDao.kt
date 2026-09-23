@@ -89,6 +89,14 @@ interface BookDao {
     @Query("UPDATE books SET latestChapterTitle = :title, intro = :intro WHERE id = :bookId")
     suspend fun updateSourceInfo(bookId: Long, title: String?, intro: String?)
 
+    /**
+     * 换源：重绑书籍的书源主键。
+     * 之所以要单独一条 SQL：books 表上 (source_id, source_book_key) 是唯一索引，
+     * 换源后必须整体改写这两个字段，否则下次「加入书架」会被判为重复书。
+     */
+    @Query("UPDATE books SET sourceId = :sourceId, sourceBookKey = :bookKey WHERE id = :bookId")
+    suspend fun rebindSource(bookId: Long, sourceId: Long, bookKey: String)
+
     @Query("SELECT * FROM books WHERE dedupHash = :hash LIMIT 1")
     suspend fun findByDedupHash(hash: String): BookEntity?
 
