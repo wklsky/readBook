@@ -40,6 +40,14 @@ class SearchUrlTemplateTest {
     }
 
     @Test
+    fun `查询参数里的 charset 不会被当成编码声明剥离`() {
+        // 回归用例：早期正则允许竖线可选，会把正常的 ?charset=utf-8 查询参数删掉
+        val parsed = SearchUrlTemplate.parse("https://a.com/search?q={{key}}&charset=utf-8")
+        assertThat(parsed.url).isEqualTo("https://a.com/search?q={{key}}&charset=utf-8")
+        assertThat(parsed.charset).isEqualTo("UTF-8")
+    }
+
+    @Test
     fun `关键字按声明编码渲染`() {
         val gbk = SearchUrlTemplate.render("https://a.com/s?q={{key}}", "斗破", 1, "GBK")
         assertThat(gbk).startsWith("https://a.com/s?q=%B6%B7%C6%C6")

@@ -29,8 +29,12 @@ object SearchUrlTemplate {
 
     private val lenient = Json { ignoreUnknownKeys = true; isLenient = true }
 
-    /** 编码声明形态：`|char=gbk|`、`|charset=gbk|` */
-    private val INLINE_CHARSET = Regex("""\|?\s*char(?:set)?\s*=\s*([\w-]+)\s*\|?""", RegexOption.IGNORE_CASE)
+    /**
+     * 编码声明形态：`|char=gbk|` / `|charset=gbk|`。
+     * 必须以 `|` 起头：早先版本允许两侧竖线可选，会把 URL 里正常的
+     * `?charset=utf-8` 查询参数当成声明剥掉，直接改写坏请求地址。
+     */
+    private val INLINE_CHARSET = Regex("""\|\s*char(?:set)?\s*=\s*([\w-]+)\s*(?:\||$)""", RegexOption.IGNORE_CASE)
 
     fun parse(raw: String): ParsedSearchUrl {
         val text = raw.trim()

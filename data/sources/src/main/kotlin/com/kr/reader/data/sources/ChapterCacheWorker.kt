@@ -25,7 +25,8 @@ class ChapterCacheWorker(
 
     override suspend fun doWork(): Result {
         val bookId = inputData.getLong(KEY_BOOK_ID, INVALID_ID)
-        if (bookId == INVALID_ID) return Result.failure()
+        // 只判断 INVALID_ID 会漏掉「调用方传了 0」的情况，0 不是合法的书主键
+        if (bookId <= 0) return Result.failure()
 
         // TODO: 长任务未提升为前台服务（需要通知渠道与图标资源），国内 ROM 上可能被后台限制掐断。
         // V0.4 阶段先用普通后台任务 + 设置页提示「锁定后台」，待补齐通知资源后改为 setForeground()。

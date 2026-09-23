@@ -89,7 +89,7 @@ class ChapterMatcher @Inject constructor() {
     private fun chineseNumber(text: String): Int? {
         if (text.length == 1) return CHINESE_DIGITS[text[0]]
         if (text.startsWith("十")) {
-            val rest = CHINESE_DIGITS[text.getOrNull(1)] ?: 0
+            val rest = text.getOrNull(1)?.let { CHINESE_DIGITS[it] } ?: 0
             return 10 + rest
         }
         val tensIndex = text.indexOf('十')

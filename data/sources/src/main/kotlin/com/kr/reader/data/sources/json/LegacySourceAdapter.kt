@@ -15,6 +15,7 @@ import com.kr.reader.core.model.source.DetailRule
 import com.kr.reader.core.model.source.SearchRule
 import com.kr.reader.core.model.source.SourceRules
 import com.kr.reader.core.model.source.UrlRule
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -48,6 +49,12 @@ internal object LegacySourceAdapter {
         val contentBlock = obj.obj("ruleContent")
 
         val parsed = SearchUrlTemplate.parse(searchUrl)
+        /*
+         * 第三方书源把 Cookie / 防盗链头放在 header 字段里（常见两种写法：JSON 对象或逐行 key:value）。
+         * 不解析它，needCookie 的站点一律返回「请开启 JavaScript」或登录页，
+         * 用户会误判成书源失效，实际只是请求没带 cookie。
+         */
+        val mergedHeaders = parseHeaders(obj.str("header", "headers")) + parsed.headers
 
         return BookSource(
             name = name,
@@ -64,7 +71,7 @@ internal object LegacySourceAdapter {
                     url = parsed.url,
                     method = parsed.method,
                     body = parsed.body,
-                    headers = parsed.headers,
+                    headers = mergedHeaders,
                     list = normalizeSelector(searchBlock.str("bookList", "list")),
                     name = toContentRule(searchBlock.str("name")),
                     author = toContentRule(searchBlock.str("author")),
@@ -96,7 +103,7 @@ internal object LegacySourceAdapter {
                     contentBlock.str("content"),
                     extraProcessing = buildProcessing(contentBlock.str("replaceRegex")),
                 ) ?: ContentRule(rule = "", processing = ""),
-                headers = parsed.headers,
+                headers = mergedHeaders,
             ),
         )
     }
@@ -169,6 +176,25 @@ internal object LegacySourceAdapter {
             text = "#" + text.removePrefix("id.").split('.').first()
         }
         return text.trim()
+    }
+
+    /** header 字段两种写法都支持：JSON 对象，或逐行 `Key: value` */
+    private fun parseHeaders(raw: String): Map<String, String> {
+        val text = raw.trim()
+        if (text.isEmpty()) return emptyMap()
+        val fromJson = runCatching {
+            Json.parseToJsonElement(text).jsonObject.mapNotNull { (key, value) ->
+                (value as? JsonPrimitive)?.contentOrNull?.let { key to it }
+            }.toMap()
+        }.getOrNull()
+        if (!fromJson.isNullOrEmpty()) return fromJson
+        return text.lineSequence()
+            .mapNotNull { line ->
+                val splitAt = line.indexOf(':')
+                if (splitAt <= 0) return@mapNotNull null
+                line.substring(0, splitAt).trim() to line.substring(splitAt + 1).trim()
+            }
+            .toMap()
     }
 
     private fun JsonObject.obj(vararg keys: String): JsonObject =

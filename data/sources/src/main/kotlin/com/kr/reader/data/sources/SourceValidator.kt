@@ -72,8 +72,12 @@ class SourceValidator @Inject constructor() {
     private fun selectorError(rule: String): Throwable? {
         val text = rule.trim()
         if (text.isEmpty()) return null
-        // 非选择器语法（正则 / JsonPath / 文本节点指令）不走 Jsoup 校验
-        if (text.startsWith("regex:") || text.startsWith("$") || NON_SELECTOR_TOKENS.contains(text)) return null
+        // 非选择器语法（正则 / JsonPath / 属性取值 @xxx / 文本节点指令）不走 Jsoup 校验。
+        // 属性语法必须整体跳过而不是只枚举 @href/@src：自定义属性（@data-src、@attr:xxx）
+        // 会被 Jsoup 判为语法错误，导致合法书源被误拦在导入之外
+        if (text.startsWith("regex:") || text.startsWith("$") || text.startsWith("@") ||
+            NON_SELECTOR_TOKENS.contains(text)
+        ) return null
         return runCatching {
             // 空文档上跑一次选择：语法错误会以 SelectorParseException 抛出，语义不匹配则静默返回空
             Selector.select(text, Jsoup.parse("<html><body></body></html>").body())

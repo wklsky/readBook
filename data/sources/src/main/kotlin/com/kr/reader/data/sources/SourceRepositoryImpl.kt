@@ -10,6 +10,7 @@ package com.kr.reader.data.sources
 
 import com.kr.reader.core.common.IoDispatcher
 import com.kr.reader.core.database.dao.SourceDao
+import com.kr.reader.core.model.SourceHealth
 import com.kr.reader.core.model.source.BookSource
 import com.kr.reader.domain.repository.SourceRepository
 import javax.inject.Inject
@@ -69,13 +70,29 @@ class SourceRepositoryImpl @Inject constructor(
         dao.updateSortOrder(id, newOrder)
     }
 
-    /** 成功打点：DAO 内部会把 failCount 归零并把健康度恢复为 OK */
+    /**
+     * 成功打点：failCount 归零、健康度回 OK、平均延迟指数平滑。
+     * 这里显式「读-改-写」而不调 DAO 的默认方法实现：
+     * Room 对「@Dao 接口中带函数体的默认方法」的支持在不同版本表现不一致，
+     * 把语义收敛在数据层可以消除这一整类编译期风险。
+     */
     override suspend fun recordSuccess(id: Long, latencyMs: Int): Unit = withContext(IoDispatcher) {
-        dao.recordSuccess(id, latencyMs, System.currentTimeMillis())
+        val at = System.currentTimeMillis()
+        val entity = dao.loadForUpdate(id) ?: return@withContext
+        dao.insert(
+            entity.copy(
+                failCount = 0,
+                health = SourceHealth.OK.name,
+                lastSuccessAt = at,
+                lastCheckedAt = at,
+                // 指数平滑而非全量重算：单次抖动不该把源的排序权重整个掀翻
+                avgLatencyMs = (entity.avgLatencyMs * 3 + latencyMs) / 4,
+            ),
+        )
     }
 
     /** 失败打点：连续失败 3 次 DEGRADED、10 次 BROKEN，之后聚合搜索自动跳过该源 */
     override suspend fun recordFailure(id: Long): Unit = withContext(IoDispatcher) {
-        dao.recordFailure(id, System.currentTimeMillis())
+        dao.recordFailureInternal(id, System.currentTimeMillis())
     }
 }

@@ -25,12 +25,14 @@ class DomainRateLimiter @Inject constructor() {
 
     suspend fun acquire(url: String) {
         val host = hostOf(url)
-        val now = TimeSource.Monotonic.markNow()
-        val last = lastRequestAt[host] ?: return
-        val elapsedMs = last.elapsedNow().inWholeMilliseconds
-        val wait = DEFAULT_MIN_INTERVAL_MS - elapsedMs
-        if (wait > 0) delay(wait)
-        lastRequestAt[host] = now
+        val last = lastRequestAt[host]
+        if (last != null) {
+            val wait = DEFAULT_MIN_INTERVAL_MS - last.elapsedNow().inWholeMilliseconds
+            if (wait > 0) delay(wait)
+        }
+        // 首次请求也必须写入时间戳：原实现在 last 为空时直接 return，
+        // 导致每个域名的每一条请求都走「首次」分支，限流形同虚设
+        lastRequestAt[host] = TimeSource.Monotonic.markNow()
     }
 
     fun markRequest(url: String) {

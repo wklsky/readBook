@@ -30,6 +30,30 @@ class RuleEngineTest {
     }
 
     @Test
+    fun `文本字段不会误取链接`() {
+        // 回归用例：搜索条目普遍是 <a>，若不加区分地优先读 href，书名会整片变成 URL
+        val document = doc("""<a class="book" href="/book/1.html">斗破苍穹</a>""")
+        val root = document.selectFirst("a")!!
+        assertThat(engine.extract(ContentRule(rule = "a"), root, "https://a.com")).isEqualTo("斗破苍穹")
+        assertThat(engine.extract(ContentRule(rule = "a"), root, "https://a.com", wantUrl = true))
+            .isEqualTo("https://a.com/book/1.html")
+    }
+
+    @Test
+    fun `行尾锚定不会被误判成捕获组`() {
+        val document = doc("""<p>共 1234 字</p>""")
+        val root = document.body()
+        assertThat(engine.extract(ContentRule(rule = """regex:共\s*\d+\s*字$"""), root)).isEqualTo("共 1234 字")
+    }
+
+    @Test
+    fun `安全正则不被 ReDoS 检查误杀`() {
+        // (第.章)(.*) 是并列结构而非嵌套量词，必须放行，否则用户的替换规则会静默失效
+        assertThat(engine.applyProcessing("第一章 开局", "regex:(第.章)(.*)=>$1：$2")).isEqualTo("第一章： 开局")
+        assertThat(engine.applyProcessing("aaa-bbb", "regex:(a+)-(b+)=>$2$1")).isEqualTo("bbbaaa")
+    }
+
+    @Test
     fun `属性语法取到绝对链接`() {
         val document = doc("""<a class="go" href="/book/1.html">详情</a>""")
         val root = document.selectFirst("a")!!

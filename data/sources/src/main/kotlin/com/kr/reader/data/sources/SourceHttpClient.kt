@@ -71,6 +71,12 @@ class SourceHttpClient @Inject constructor(
                     return@withContext decode(bytes, source.charset)
                 }
             } catch (e: IOException) {
+                /*
+                 * 必须区分「可重试」与「不可重试」的失败：
+                 * SourceHttpException 也继承 IOException，若不判断状态码，
+                 * 404 / 403 这类确定性失败会被重试满 3 次，既拖慢搜索又加速触发风控。
+                 */
+                if (e is SourceHttpException && !RETRYABLE_CODES.contains(e.code)) throw e
                 if (attempt >= MAX_RETRY) throw e
                 delay(backoffMs(attempt))
             }
@@ -114,7 +120,8 @@ class SourceHttpClient @Inject constructor(
         // UA 按域名粘性选取：同一站点固定用同一个 UA，频繁切换反而像爬虫
         builder.header("User-Agent", source.customUserAgent?.takeIf { it.isNotBlank() } ?: uaProvider.forDomain(hostOf(url)))
         builder.header("Accept-Language", "zh-CN,zh;q=0.9")
-        builder.header("Referer", source.baseUrl)
+        // 空 Referer 会让部分站点直接判定为爬虫；书源没配 baseUrl 时宁可不发这个头
+        source.baseUrl.takeIf { it.isNotBlank() }?.let { builder.header("Referer", it) }
         if (method.equals("POST", ignoreCase = true)) {
             builder.post((body ?: "").toRequestBody(FORM_MEDIA_TYPE))
         }

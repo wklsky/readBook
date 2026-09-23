@@ -46,12 +46,16 @@ class SourceEngineImpl @Inject constructor(
         val rule = source.rules.search
         val parsed = SearchUrlTemplate.parse(rule.url)
         val method = if (parsed.method != "GET") parsed.method else rule.method.ifBlank { "GET" }
-        val headers = rule.headers + parsed.headers
+        // 三级 headers 都要带上：站点级（常见的 Cookie/防盗链）→ 搜索规则级 → URL 模板内联级。
+        // 漏掉站点级会让配了 needCookie 的源每次都被判定为「书源失效」
+        val headers = source.rules.headers + rule.headers + parsed.headers
         val charset = parsed.charset.ifBlank { source.charset }
 
         val results = mutableListOf<SourceSearchItem>()
         var page = 1
-        var url: String? = SearchUrlTemplate.render(parsed.url, keyword, page, charset)
+        val startUrl = SearchUrlTemplate.render(parsed.url, keyword, page, charset)
+        if (startUrl.isBlank()) throw SourceRuleBroken("搜索地址为空，请检查书源的搜索规则")
+        var url: String? = startUrl
         while (url != null && page <= MAX_SEARCH_PAGES) {
             val html = http.fetch(
                 source = source,
@@ -76,6 +80,9 @@ class SourceEngineImpl @Inject constructor(
     }
 
     override suspend fun fetchDetail(source: BookSource, detailUrl: String): MergedBook = withHealth(source) {
+        // 空地址交给 OkHttp 只会抛出难以理解的 IllegalArgumentException，
+        // 提前拦成书源规则错误，用户在调试器里能直接看到原因
+        if (detailUrl.isBlank()) throw SourceRuleBroken("详情页地址为空")
         val html = http.fetch(source, detailUrl)
         val doc = Jsoup.parse(html, detailUrl)
         val rule = source.rules.detail
@@ -108,6 +115,7 @@ class SourceEngineImpl @Inject constructor(
     }
 
     override suspend fun fetchCatalog(source: BookSource, bookKey: String): List<CatalogItem> = withHealth(source) {
+        if (bookKey.isBlank()) throw SourceRuleBroken("目录页地址为空")
         val rule = source.rules.catalog
         val items = mutableListOf<CatalogItem>()
         var page = 1
@@ -129,6 +137,7 @@ class SourceEngineImpl @Inject constructor(
     }
 
     override suspend fun fetchContent(source: BookSource, chapterUrl: String): String = withHealth(source) {
+        if (chapterUrl.isBlank()) throw SourceRuleBroken("章节地址为空")
         val html = http.fetch(source, chapterUrl)
         val doc = Jsoup.parse(html, chapterUrl)
         val text = ruleEngine.parseContent(source.rules.content, doc)
@@ -144,7 +153,8 @@ class SourceEngineImpl @Inject constructor(
         val book = bookRepository.getBook(bookId) ?: return@withContext emptyList()
         val localChapters = bookRepository.getChapters(bookId)
         if (localChapters.isEmpty()) return@withContext emptyList()
-        val localTitles = localChapters.map { it.title }.toSet()
+        // 卷行不是章节，计入差异会凭空多出一堆「目标源缺失」
+        val localTitles = localChapters.filter { !it.isVolume }.map { it.title }.toSet()
 
         sourceRepository.enabledSourcesSortedByHealth()
             .filter { it.id != book.sourceId }
@@ -165,7 +175,7 @@ class SourceEngineImpl @Inject constructor(
 
         val found = findInSource(target, book.title)
             ?: throw SourceRuleBroken("目标书源未收录《${book.title}》")
-        val catalog = fetchCatalog(target, found.detailUrl)
+        val catalog = fetchCatalog(target, resolveCatalogKey(target, found))
         if (catalog.isEmpty()) throw SourceRuleBroken("目标书源返回了空目录")
 
         val oldChapters = bookRepository.getChapters(bookId)
@@ -260,6 +270,19 @@ class SourceEngineImpl @Inject constructor(
             ?: ruleEngine.resolveUrl(source.baseUrl.ifBlank { detailUrl }, pattern)
     }
 
+    /**
+     * 目录页地址解析：站点普遍把目录单独放在 toc 页（详情页只放简介），
+     * 直接用详情页当目录会抓到空目录——换源与多源对比都必须先走这一步。
+     */
+    private suspend fun resolveCatalogKey(source: BookSource, found: SourceSearchItem): String {
+        val pattern = source.rules.detail.catalog?.pattern?.trim()
+        if (pattern.isNullOrBlank()) return found.detailUrl
+        return runCatching { fetchDetail(source, found.detailUrl).sources.firstOrNull()?.detailUrl }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: found.detailUrl
+    }
+
     /** 在指定源里按书名找最匹配的一本，用于换源与多源对比 */
     private suspend fun findInSource(source: BookSource, title: String): SourceSearchItem? {
         val results = runCatching { search(source, title) }.getOrDefault(emptyList())
@@ -275,7 +298,7 @@ class SourceEngineImpl @Inject constructor(
         localTitles: Set<String>,
     ): SourceBookDiff? {
         val found = findInSource(source, book.title) ?: return null
-        val catalog = fetchCatalog(source, found.detailUrl)
+        val catalog = fetchCatalog(source, resolveCatalogKey(source, found))
         if (catalog.isEmpty()) return null
         val remoteTitles = catalog.map { it.title }.toSet()
 

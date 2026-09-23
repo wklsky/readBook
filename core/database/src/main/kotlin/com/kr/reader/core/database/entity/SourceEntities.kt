@@ -36,7 +36,12 @@ data class BookSourceEntity(
 
 @Entity(
     tableName = "chapter_cache",
-    indices = [Index(value = ["cached_at"])],
+    indices = [
+        Index(value = ["cached_at"]),
+        // (bookId, index) 必须唯一：缺这个索引时重复缓存同一章会插入多行，
+        // 而读取走的是 LIMIT 1，拿到的永远是第一次缓存的旧内容，「更新缓存」形同失效
+        Index(value = ["bookId", "index"], unique = true),
+    ],
 )
 data class ChapterCacheEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

@@ -31,7 +31,9 @@ class RuleEngine @Inject constructor(
     fun selectList(rule: String, root: Element): List<Element> {
         val spec = rule.trim()
         if (spec.isEmpty()) return listOf(root)
-        val elements = root.select(spec)
+        // 与 extract 保持一致：列表容器选择器同样可能是用户手写的非法语法，
+        // 抛出会让聚合搜索里一个坏源打断整批结果
+        val elements = runCatching { root.select(spec) }.getOrNull() ?: return emptyList()
         if (elements.isEmpty()) return emptyList()
         return elements.toList()
     }
@@ -48,7 +50,7 @@ class RuleEngine @Inject constructor(
     ): String {
         val spec = rule?.rule?.trim().orEmpty()
         if (spec.isEmpty()) return ""
-        val raw = extractRaw(spec, root)
+        val raw = extractRaw(spec, root, wantUrl)
         val resolved = if (wantUrl) resolveUrl(baseUri, raw) else raw
         return applyProcessing(resolved, rule?.processing.orEmpty())
     }
@@ -101,7 +103,7 @@ class RuleEngine @Inject constructor(
 
     // ── 三类提取语法 ──────────────────────────────────────────────
 
-    private fun extractRaw(spec: String, root: Element): String = when {
+    private fun extractRaw(spec: String, root: Element, wantUrl: Boolean): String = when {
         spec.startsWith("regex:") -> applyRegex(spec.removePrefix("regex:"), root.text())
         spec.startsWith("$") -> extractJson(spec, root.text())
         spec.startsWith("@") -> attrOf(spec, root)
@@ -113,18 +115,28 @@ class RuleEngine @Inject constructor(
             // 选择器可能是用户手写的非法语法：这里吞掉异常返回空，
             // 否则一次聚合搜索里某个源写错规则会把整条搜索链路打断
             val element = runCatching { root.selectFirst(spec) }.getOrNull() ?: return ""
-            val value = element.attr("abs:href").takeIf { it.isNotBlank() }
-                ?: element.text().trim()
-            value
+            // 只有「取链接」的场景才优先读 href：搜索列表的条目普遍就是 <a>，
+            // 若无条件优先取 href，书名/作者/简介会整片变成 URL
+            if (wantUrl) {
+                element.attr("abs:href").takeIf { it.isNotBlank() }
+                    ?: element.attr("href").trim()
+            } else {
+                element.text().trim()
+            }
         }
     }
 
     /** 语法 `pattern$1`：取第 1 捕获组；不带 $ 时取整段匹配 */
     private fun applyRegex(spec: String, input: String): String {
         if (input.isEmpty()) return ""
-        val splitAt = spec.lastIndexOf('$')
-        val pattern = if (splitAt > 0) spec.substring(0, splitAt) else spec
-        val group = if (splitAt > 0) spec.substring(splitAt + 1).trim().toIntOrNull() ?: 1 else 0
+        /*
+         * 只有末尾形如 `$1` 的才是「取第 N 捕获组」指示。
+         * 正则自身的行尾锚定（如 `共(\d+)字$`）同样是 `$` 结尾，
+         * 按 lastIndexOf('$') 拆分会把锚定符吃掉、并把组号误判成 1。
+         */
+        val groupMark = GROUP_MARK.find(spec)
+        val pattern = groupMark?.let { spec.substring(0, it.range.first) } ?: spec
+        val group = groupMark?.groupValues?.get(1)?.toIntOrNull() ?: 0
         if (!isSafePattern(pattern)) return ""
         val match = runCatching { Regex(pattern).find(input) }.getOrNull() ?: return ""
         return match.groupValues.getOrElse(group) { "" }
@@ -194,7 +206,8 @@ class RuleEngine @Inject constructor(
         }
         val own = root.attr(name)
         if (own.isNotBlank()) return own
-        return root.selectFirst("[$name]")?.attr(name).orEmpty()
+        // 属性名可能带引号等非法字符，选择器会抛解析异常，必须吞掉而不是中断整条规则链
+        return runCatching { root.selectFirst("[$name]")?.attr(name) }.getOrNull().orEmpty()
     }
 
     // ── 后处理管道 ────────────────────────────────────────────────
@@ -232,16 +245,30 @@ class RuleEngine @Inject constructor(
      */
     private fun isSafePattern(pattern: String): Boolean {
         if (pattern.length > MAX_PATTERN_LENGTH) return false
-        var depth = 0
-        var quantifierInGroup = false
-        pattern.forEach { ch ->
-            when (ch) {
-                '(' -> depth++
-                ')' -> { if (quantifierInGroup) return false; depth = 0; quantifierInGroup = false }
-                '+', '*' -> if (depth > 0) quantifierInGroup = true
+        /*
+         * 只拦截「组内含量词、且该组整体又被量词修饰」这一典型 ReDoS 形态（如 (a+)+）。
+         * 早期实现只要组内出现量词就拒绝，会误杀 (第.章)(.*) 这类完全安全的并列结构，
+         * 导致用户配置的正文替换规则静默失效——这是比 ReDoS 更容易发生的问题。
+         */
+        val groupStack = ArrayDeque<Boolean>()
+        var index = 0
+        while (index < pattern.length) {
+            when (pattern[index]) {
+                '\\' -> index++ // 转义字符原样跳过，避免 \( 被当成分组
+                '(' -> groupStack.addLast(false)
+                ')' -> {
+                    val quantified = groupStack.removeLastOrNull() ?: false
+                    val next = pattern.getOrNull(index + 1)
+                    if (quantified && (next == '+' || next == '*' || next == '{' || next == '?')) return false
+                }
+                '+', '*', '?', '{' -> {
+                    if (groupStack.isNotEmpty()) groupStack[groupStack.lastIndex] = true
+                }
+                else -> Unit
             }
+            index++
         }
-        return !quantifierInGroup
+        return true
     }
 
     private fun safeReplace(input: String, pattern: String, replacement: String): String {
@@ -287,9 +314,12 @@ class RuleEngine @Inject constructor(
         const val STEP_UNESCAPE = "unescape"
         const val MAX_PATTERN_LENGTH = 200
         const val MAX_REPLACE_INPUT = 200_000
-        val AD_SELECTOR = "script, style, iframe, noscript, ins, .ads, [class*=ad-], [id*=ad-]"
+        // 广告节点选择器必须保守：早期用 [class*=ad-] 会把 class="read-content" 之类
+        // 的正文中招（"ad-" 恰好出现在单词内），整段章节被吃掉，宁可少删也不能误删正文
+        val AD_SELECTOR = "script, style, iframe, noscript, ins, .ads, .advert, [class*=advert], [id*=advert]"
         val BR_REGEX = Regex("""<br\s*/?>""", RegexOption.IGNORE_CASE)
         val ENTITY_PATTERN = Regex("""&(#?\w+);""")
+        val GROUP_MARK = Regex("""\$(\d+)$""")
         val NAMED_ENTITIES = mapOf(
             "amp" to "&", "lt" to "<", "gt" to ">", "quot" to "\"", "apos" to "'",
             "nbsp" to " ", "#39" to "'", "#34" to "\"",

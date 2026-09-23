@@ -44,34 +44,45 @@ class SourceImporter @Inject constructor(
         if (sources.isEmpty()) {
             return SourceImportReport(emptyList(), invalidJson = "没有解析到任何书源")
         }
-        return SourceImportReport(sources.map { importOne(it) })
+        // 新书源必须排在已有书源之后：sortOrder 默认 0，不显式分配会让新旧书源
+        // 全部挤在同一序号上，用户拖拽排序的结果根本无法稳定保存
+        var order = repository.all().size
+        return SourceImportReport(sources.map { importOne(it, order++) })
     }
 
     override suspend fun importFromUrls(urls: List<String>): SourceImportReport = coroutineScope {
-        val items = urls
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .chunked(URL_CONCURRENCY)
-            .flatMap { chunk ->
-                chunk.map { url ->
-                    async(IoDispatcher) {
-                        runCatching {
-                            val json = http.fetchPlain(url)
-                            val report = importFromText(json)
-                            when {
-                                report.invalidJson != null -> SourceImportItem(url, false, report.invalidJson!!)
-                                report.items.isEmpty() -> SourceImportItem(url, false, "该链接未返回任何书源")
-                                report.failCount > 0 -> SourceImportItem(
-                                    url,
-                                    report.successCount > 0,
-                                    report.items.firstOrNull { !it.ok }?.reason.orEmpty(),
-                                )
-                                else -> SourceImportItem(url, true)
-                            }
-                        }.getOrElse { SourceImportItem(url, false, "下载失败：${it.message.orEmpty()}") }
-                    }
-                }.awaitAll()
+        val targets = urls.map { it.trim() }.filter { it.isNotBlank() }
+        /*
+         * 下载并发、入库串行：
+         * 并发入库会让 sortOrder 计算互相踩踏（两个链接同时读到同一份 all().size），
+         * 同名校验也会因为读到的快照不同而漏判，因此只并发网络部分。
+         */
+        val downloaded = targets.chunked(URL_CONCURRENCY).flatMap { chunk ->
+            chunk.map { url -> async(IoDispatcher) { url to runCatching { http.fetchPlain(url) } } }.awaitAll()
+        }
+
+        var order = repository.all().size
+        val items = ArrayList<SourceImportItem>()
+        for ((url, result) in downloaded) {
+            val json = result.getOrNull()
+            if (json == null) {
+                items += SourceImportItem(url, false, "下载失败：${result.exceptionOrNull()?.message.orEmpty()}")
+                continue
             }
+            val sources = runCatching { codec.decodeMany(json) }.getOrNull()
+            if (sources.isNullOrEmpty()) {
+                items += SourceImportItem(url, false, "该链接未返回任何书源")
+                continue
+            }
+            var anyOk = false
+            var firstReason = ""
+            sources.forEach { source ->
+                val item = importOne(source, order++)
+                if (!item.ok && firstReason.isEmpty()) firstReason = item.reason
+                anyOk = anyOk || item.ok
+            }
+            items += SourceImportItem(url, anyOk, firstReason)
+        }
         SourceImportReport(items)
     }
 
@@ -81,14 +92,14 @@ class SourceImporter @Inject constructor(
         return importFromText(text)
     }
 
-    private suspend fun importOne(source: BookSource): SourceImportItem {
+    private suspend fun importOne(source: BookSource, sortOrder: Int): SourceImportItem {
         val validation = validator.validate(source)
         if (!validation.ok) return SourceImportItem(source.name, false, validation.reason)
         // 同名拒绝而不是覆盖：书源是用户手工调过的资产，静默覆盖等于丢失配置
         if (repository.existsByName(source.name)) {
             return SourceImportItem(source.name, false, "已存在同名书源")
         }
-        repository.insert(source)
+        repository.insert(source.copy(sortOrder = sortOrder))
         return SourceImportItem(source.name, true)
     }
 
